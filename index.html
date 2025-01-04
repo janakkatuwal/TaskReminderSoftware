@@ -1,166 +1,200 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Task Reminder</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>Task Reminder App</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body {
-            background-color: #f8f9fa;
+        body { background-color: #d3d3d3;
         }
-
-        .task-container {
-            border: 2px solid blue;
-            border-radius: 10px;
-            padding: 20px;
-            background-color: #ffffff;
-            margin-top: 20px;
-        }
-
-        .task-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-            margin-bottom: 10px;
-        }
-
         .task-item.completed {
             text-decoration: line-through;
-            background-color: #d4edda;
-        }
-
-        .btn-delete {
-            color: red;
-        }
-
-        .btn-delete:hover {
-            color: darkred;
+            opacity: 0.6;
         }
     </style>
 </head>
-
 <body>
-    <div class="container">
-        <h1 class="text-center my-4">Task Reminder</h1>
-
-        <div class="task-container">
-            <form id="task-form">
-                <div class="mb-3">
-                    <label for="task-name" class="form-label">Task Name</label>
-                    <input type="text" class="form-control" id="task-name" placeholder="Enter your task" required>
+<div class="container mt-5">
+    <h1 class="text-center mb-4">Task Reminder App</h1>
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <form id="taskForm" class="mb-3">
+                <div class="row g-2">
+                    <div class="col-md-4">
+                        <input type="text" id="taskName" class="form-control" placeholder="Enter task name" required>
+                    </div>
+                    <div class="col-md-4">
+                        <input type="datetime-local" id="taskReminder" class="form-control" required>
+                    </div>
+                    <div class="col-md-2">
+                        <select id="toneSelector" class="form-select">
+                            <option value="https://www.soundjay.com/button/beep-07.wav">Default Beep</option>
+                            <option value="https://www.soundjay.com/button/beep-10.wav">Alert Tone</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-primary w-100">Add Task</button>
+                    </div>
                 </div>
-
-                <div class="mb-3">
-                    <label for="reminder-time" class="form-label">Reminder Time</label>
-                    <input type="datetime-local" class="form-control" id="reminder-time" required>
-                </div>
-
-                <div class="mb-3">
-                    <label for="reminder-tone" class="form-label">Reminder Tone</label>
-                    <select class="form-control" id="reminder-tone">
-                        <option value="default">Default Tone</option>
-                        <option value="tone1">Tone 1</option>
-                        <option value="tone2">Tone 2</option>
-                    </select>
-                </div>
-
-                <button type="submit" class="btn btn-primary">Add Task</button>
             </form>
 
-            <div id="tasks-list" class="mt-4">
-                <!-- Tasks will be dynamically added here -->
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 id="taskCount" class="mb-0"><span style='color: red;'>Total Tasks:</span> <span style='color: green;'>0</span></h5>
+                <button class="btn btn-danger btn-sm" onclick="deleteAllTasks()">Delete All</button>
+            </div>
+
+            <div id="taskList" class="list-group">
+                <!-- Task items will appear here -->
             </div>
         </div>
     </div>
+</div>
 
-    <script>
-        const taskForm = document.getElementById('task-form');
-        const tasksList = document.getElementById('tasks-list');
+<audio id="reminderTone" src=""></audio>
 
-        // Load tasks from localStorage
-        let tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+<!-- Edit Modal -->
+<div class="modal fade" id="editTaskModal" tabindex="-1" aria-labelledby="editTaskModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editTaskModalLabel">Edit Task</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editTaskForm">
+                    <div class="mb-3">
+                        <label for="editTaskName" class="form-label">Task Name</label>
+                        <input type="text" id="editTaskName" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editTaskReminder" class="form-label">Reminder</label>
+                        <input type="datetime-local" id="editTaskReminder" class="form-control" required>
+                    </div>
+                    <input type="hidden" id="editTaskId">
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 
-        // Add task
-        taskForm.addEventListener('submit', function (e) {
-            e.preventDefault();
+<script>
+    const taskForm = document.getElementById('taskForm');
+    const taskNameInput = document.getElementById('taskName');
+    const taskReminderInput = document.getElementById('taskReminder');
+    const taskList = document.getElementById('taskList');
+    const reminderTone = document.getElementById('reminderTone');
+    const taskCount = document.getElementById('taskCount');
+    const toneSelector = document.getElementById('toneSelector');
 
-            const taskName = document.getElementById('task-name').value;
-            const reminderTime = document.getElementById('reminder-time').value;
-            const reminderTone = document.getElementById('reminder-tone').value;
+    const editTaskForm = document.getElementById('editTaskForm');
+    const editTaskNameInput = document.getElementById('editTaskName');
+    const editTaskReminderInput = document.getElementById('editTaskReminder');
+    const editTaskIdInput = document.getElementById('editTaskId');
 
+    let tasks = [];
+
+    // Add Task
+    taskForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+
+        const taskName = taskNameInput.value.trim();
+        const taskReminder = taskReminderInput.value;
+        const selectedTone = toneSelector.value;
+
+        if (taskName && taskReminder) {
             const task = {
                 id: Date.now(),
                 name: taskName,
-                time: reminderTime,
-                tone: reminderTone,
+                reminder: new Date(taskReminder),
+                tone: selectedTone,
                 completed: false
             };
-
             tasks.push(task);
-            saveTasksToLocalStorage();
-            renderTasks();
-
-            // Clear the form
+            displayTasks();
             taskForm.reset();
+        }
+    });
+
+    // Display Tasks
+    function displayTasks() {
+        taskList.innerHTML = '';
+        tasks.forEach((task, index) => {
+            const taskItem = document.createElement('div');
+            taskItem.className = `list-group-item list-group-item-action d-flex justify-content-between align-items-center task-item ${task.completed ? 'completed' : ''}`;
+
+            taskItem.innerHTML = `
+                <span>${index + 1}. ${task.name} <small class="text-muted">(${task.reminder.toLocaleString()})</small></span>
+                <div>
+                    <button class="btn btn-warning btn-sm me-2" onclick="editTask(${task.id})">Edit</button>
+                    <button class="btn btn-success btn-sm me-2" onclick="markCompleted(${task.id})">${task.completed ? 'Undo' : 'Complete'}</button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteTask(${task.id})">Delete</button>
+                </div>
+            `;
+
+            taskList.appendChild(taskItem);
         });
+        taskCount.innerHTML = `<span style='color: red;'>Total Tasks:</span> <span style='color: green;'>${tasks.length}</span>`;
+    }
 
-        // Render tasks
-        function renderTasks() {
-            tasksList.innerHTML = '';
+    // Mark Task as Completed
+    function markCompleted(id) {
+        tasks = tasks.map(task => task.id === id ? { ...task, completed: !task.completed } : task);
+        displayTasks();
+    }
 
-            tasks.forEach(task => {
-                const taskItem = document.createElement('div');
-                taskItem.classList.add('task-item');
-                if (task.completed) {
-                    taskItem.classList.add('completed');
-                }
+    // Delete Task
+    function deleteTask(id) {
+        tasks = tasks.filter(task => task.id !== id);
+        displayTasks();
+    }
 
-                taskItem.innerHTML = `
-                    <span>${task.name} (Reminder: ${new Date(task.time).toLocaleString()})</span>
-                    <div>
-                        <button class="btn btn-sm btn-success" onclick="markCompleted(${task.id})">Mark Completed</button>
-                        <button class="btn btn-sm btn-delete" onclick="deleteTask(${task.id})">Delete</button>
-                    </div>
-                `;
+    // Delete All Tasks
+    function deleteAllTasks() {
+        tasks = [];
+        displayTasks();
+    }
 
-                tasksList.appendChild(taskItem);
-            });
+    // Edit Task
+    function editTask(id) {
+        const task = tasks.find(task => task.id === id);
+        if (task) {
+            editTaskIdInput.value = task.id;
+            editTaskNameInput.value = task.name;
+            editTaskReminderInput.value = task.reminder.toISOString().slice(0, 16);
+            const editModal = new bootstrap.Modal(document.getElementById('editTaskModal'));
+            editModal.show();
         }
+    }
 
-        // Mark task as completed
-        function markCompleted(taskId) {
-            tasks = tasks.map(task => {
-                if (task.id === taskId) {
-                    return { ...task, completed: !task.completed };
-                }
-                return task;
-            });
-            saveTasksToLocalStorage();
-            renderTasks();
-        }
+    editTaskForm.addEventListener('submit', (e) => {
+        e.preventDefault();
 
-        // Delete task
-        function deleteTask(taskId) {
-            tasks = tasks.filter(task => task.id !== taskId);
-            saveTasksToLocalStorage();
-            renderTasks();
-        }
+        const taskId = parseInt(editTaskIdInput.value, 10);
+        const updatedName = editTaskNameInput.value.trim();
+        const updatedReminder = new Date(editTaskReminderInput.value);
 
-        // Save tasks to localStorage
-        function saveTasksToLocalStorage() {
-            localStorage.setItem('tasks', JSON.stringify(tasks));
-        }
+        tasks = tasks.map(task => task.id === taskId ? { ...task, name: updatedName, reminder: updatedReminder } : task);
+        displayTasks();
 
-        // Initialize tasks on page load
-        renderTasks();
-    </script>
+        const editModal = bootstrap.Modal.getInstance(document.getElementById('editTaskModal'));
+        editModal.hide();
+    });
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
-</body>
+    // Reminder Tone
+    setInterval(() => {
+        const now = new Date();
+        tasks.forEach(task => {
+            if (!task.completed && task.reminder <= now) {
+                reminderTone.src = task.tone;
+                reminderTone.play();
+                alert(`Reminder: ${task.name}`);
+                task.completed = true;
+                displayTasks();
+            }
+        });
+    }, 1000);
+</script>
 
-</html>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></
